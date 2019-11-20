@@ -1,0 +1,136 @@
+---
+title: "WYu HW6"
+author: "Wuyue Yu"
+date: "11/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r load relevant libraries, include=FALSE}
+library(tidyverse)
+library(caret)
+library(randomForest)
+library(mlbench)
+library(glmnet)
+library(pROC)
+```
+
+1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Campare the results. 
+
+## The Glass Dataset     
+214 Observations, 10 variables      
+Original predictor Variable: Type - 1,2,3,5,6,7
+Using SVM to predict if glass sample is Type 1
+
+```{r load Glass dataset}
+data(Glass)
+head(Glass)
+dim(Glass)
+
+## Subset two classes for SVM model
+Type_One = ifelse(Glass$Type==1,"Yes","No")
+Glass_convert <- cbind(Glass[,1:9],Type_One)
+summary(Glass_convert)
+
+set.seed(2333)
+train_size = floor(0.75 * nrow(Glass_convert))
+train_pos <- sample(seq_len(nrow(Glass_convert)), size = train_size)
+
+train_classification <- Glass_convert[train_pos, ]
+test_classification <- Glass_convert[-train_pos, ]
+```
+
+##SVM 
+
+```{r}
+set.seed(3)
+control = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm_linear = train(Type_One ~ .,  data = train_classification, method = "svmLinear", tuneLength = 10, trControl = control)
+
+svm_linear
+```
+
+##Receiver operating characteristic(ROC) curve
+```{r}
+roc(predictor = svm_linear$pred$Yes, response = svm_linear$pred$obs, quiet = TRUE)$auc
+
+plot(x = roc(predictor = svm_linear$pred$Yes, response = svm_linear$pred$obs, quiet = TRUE)$specificities, y = roc(predictor = svm_linear$pred$Yes, response = svm_linear$pred$obs, quiet = TRUE)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+## Test Set 
+```{r}
+svm_test_linear = predict(svm_linear, newdata = test_classification)
+confusionMatrix(svm_test_linear, reference = test_classification$Type_One)
+```
+
+## SVM with a radial kernel 
+```{r}
+set.seed(23)
+control = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm_radial = train(Type_One ~ .,  data = train_classification, method = "svmRadial", tuneLength = 10, trControl = control)
+
+svm_radial
+```
+
+##Receiver operating characteristic(ROC) curve
+```{r}
+roc(predictor = svm_radial$pred$Yes, response = svm_radial$pred$obs, quiet = TRUE)$auc
+
+plot(x = roc(predictor = svm_radial$pred$Yes, response = svm_radial$pred$obs, quiet = TRUE)$specificities, y = roc(predictor = svm_radial$pred$Yes, response = svm_radial$pred$obs, quiet = TRUE)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+## Test Set 
+```{r}
+svm_test_radial = predict(svm_radial, newdata = test_classification)
+confusionMatrix(svm_test_radial, reference = test_classification$Type_One)
+```
+
+Two methods: SVM with Linear Kernel, SVM with Radial Kernel     
+Overall, radial kernel performed better than linear in this dataset.     
+
+2. Attempt using SVM after using a previously covered feature selection method. Do the results improve? Explain.     
+## Feature Selection Using Embedded Methods: RandomForest
+```{r importance}
+set.seed(1)
+#fit a model
+rfmodel = randomForest(Type_One ~ ., data=train_classification,  importance = TRUE, oob.times = 15, confusion = TRUE)
+#rank features based on importance 
+importance(rfmodel)
+# Create a plot of importance scores by random forest
+varImpPlot(rfmodel)
+```
+## SVM with a radial kernel after feature selection 
+```{r}
+set.seed(16)
+control = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm_fs = train(Type_One ~ Al + Mg + RI,  data = train_classification, method = "svmRadial", tuneLength = 10, trControl = control)
+
+svm_fs
+```
+
+##Receiver operating characteristic(ROC) curve
+```{r}
+roc(predictor = svm_fs$pred$Yes, response = svm_fs$pred$obs, quiet = TRUE)$auc
+
+plot(x = roc(predictor = svm_fs$pred$Yes, response = svm_fs$pred$obs, quiet = TRUE)$specificities, y = roc(predictor = svm_fs$pred$Yes, response = svm_fs$pred$obs, quiet = TRUE)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+## Test Set 
+```{r}
+svm_test_fs = predict(svm_fs, newdata = test_classification)
+confusionMatrix(svm_test_fs, reference = test_classification$Type_One)
+```
+
+For feature selection, RandomForest method is used, and three features are selected for SVM modeling.        
+Results improved slightly. Feature selection removed redundant irrelevant features, therefore reducing computational costs and noise, helping to optimize model fitting.
