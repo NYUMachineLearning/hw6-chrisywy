@@ -1,3 +1,2 @@
-# hw6-chrisywy
+# HW6 - Wuyue Yu
 hw6-chrisywy created by GitHub Classroom
-HW6 by Wuyue Yu
